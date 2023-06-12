@@ -17,6 +17,24 @@ c_kms = 2.99792458e5 # speed of light in km/s
 
 def build_bosz_grid(teff_grid = [3500, 7100, 250], logg_grid = [2.5, 5.5, 0.5], metal_grid = [-2.5, 1.5, 1], carbon_grid = [0, 1, 1], alpha_grid = [0, 1, 1], rv_grid = [-1000, 1000, 25], 
                wl_range = [3600, 9000], R = 10000, R_target = 10000):
+    """
+    build_bosz_grid: builds interpolator grids from bosz
+    inputs:
+        teff_grid          array of [teff_minimum, teff_maximum, step]
+        logg_grid          array of [logg_minimum, logg_maximum, step]
+        metal_grid         array of [metal_minimum, metal_maximum, step]
+        carbon_grid        array of [carbon_minimum, carbon_maximum, step]
+        alpha_grid         array of [alpha_minimum, alpha_maximum, step]
+        rv_grid            array of [rv_minimum, rv_maximum, step]
+        wl_range           two-element array of minimum and maximum wavelengths to calculate the grid
+        R                  bosz instrument broadening
+        R_target           desired resolution of the grid
+    outputs:
+        wl_grid            wavelength grid of the interpolator
+        raw_bosz           interpolator for entire range of wavelengths across bosz
+        interp_bosz        interpolator for specified wavelength range
+        interp_bosz_norm   interpolator for continuum normalized spectrum within the specified wavelength range
+    """
 
     teffs = np.arange(teff_grid[0], teff_grid[1], teff_grid[2])
     loggs = np.arange(logg_grid[0], logg_grid[1], logg_grid[2])
