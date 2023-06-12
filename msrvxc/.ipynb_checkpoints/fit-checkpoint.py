@@ -7,7 +7,7 @@ def log_likelihood_spec(theta, wl, fl, ivar, interpolator):
     teff, logg, Z, rv = theta
     
     if ivar is not None:
-        cost = 1/2*np.sum(((fl - np.interp(wl, np.linspace(3600, 9000, 23074), interpolator(list(theta))[0]))** 2 *ivar + np.log(1 / ivar)))
+        cost = 1/2*np.sum(((fl - np.interp(wl, np.linspace(3600, 9000, 23074), interpolator(list(theta))[0]))** 2 *ivar**2 ))
         #chisqr = sum( (fl - np.interp(wl, np.linspace(3600, 9000, 23074), interpolator(list(theta))[0]) * ivar)**2 )
     else:
         cost = 1/2*np.sum(((fl - np.interp(wl, np.linspace(3600, 9000, 23074), interpolator(list(theta))[0]))** 2 ))
@@ -37,7 +37,7 @@ def log_probability_spec(theta, wl, fl, ivar, interpolator):
 def fit_rv(interpolator, wl, fl, ivar = None, make_plot = False, vary_logg = False, p0 = [5000, 4, 0, 0]):      
     pos = p0 + 1e-4 * np.random.randn(32, 4)
     nwalkers, ndim = pos.shape
-    
+        
     #ith Pool(processes=7) as pool:
     sampler = emcee.EnsembleSampler(
         nwalkers, ndim, log_probability_spec, args=(wl, fl, ivar, interpolator))
