@@ -2,7 +2,10 @@ import lmfit
 from multiprocessing import Pool
 import emcee
 import numpy as np
-from Payne import utils as payne_utils
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+#from Payne import utils as payne_utils
 
 
 c_kms = 2.99792458e5 # speed of light in km/s
@@ -21,7 +24,7 @@ def chisqr(params, interpolator, interp_wvl, wl, fl, ivar):
     else:
         return ( (fl - simulate_spec(interpolator,interp_wvl,wl,theta)) )**2
     
-def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar,
+def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar, plot = False,
              min_rv = -1500, max_rv = 1500, npoint = 250, quad_window = 100):
     """
     Find best RV via x-correlation on grid and quadratic fitting the peak.
@@ -65,13 +68,14 @@ def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar,
     
     for ii,rv in enumerate(rvgrid):
         params['RV'].set(value = rv)
-        chi = np.sum(residual(params))
+        temp = residual(params)
+        chi = sum(temp)# / (len(temp) - 1)
         cc[ii] = chi
         
     window = int(quad_window / np.diff(rvgrid)[0])
     
     argmin = np.nanargmin(cc)
-    print(rvgrid[argmin])
+    
     c1 = argmin - window
 
     if c1 < 0:
@@ -81,6 +85,9 @@ def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar,
 
     #print(c1, c2)
 
+    glack = rvgrid
+    klack = cc
+    
     rvgrid = rvgrid[c1:c2]
     cc = cc[c1:c2]
 
@@ -91,21 +98,22 @@ def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar,
         print('pcoef failed!! returning min of chi function')
         rv = rvgrid[np.nanargmin(cc)]
        
-    converged = False
-    e_rv = np.nan
-    t_cc = cc - cc[argmin]
-    for i in range(len(t_cc)):
-        if (t_cc[i] < 1):
-            e_rv = np.abs(rvgrid[i] - r_cc[i])
-            break
-        elif (t_cc[-i] < 1):
-            e_rv = np.abs(rvgrid[-i] - r_cc[-i])
-                break
+    cutoff = 1
+    t_cc = np.interp(rv, rvgrid, cc)
+    temp = np.array([(cc[i] - t_cc) < cutoff for i in range(len(cc))])
+    
+    if plot:
+        plt.figure(figsize = (10,5))
+        pcoef = np.polyfit(rvgrid, cc, 2)
+        plt.plot(rvgrid, cc)
+    
+    e_rv = np.sqrt((np.abs(min(rvgrid[temp]) -max(rvgrid[temp])) / 2)**2 + 1**2)
+    
     #rv = rvgrid[np.nanargmin(cc)]
         
     return rv, e_rv, rvgrid, cc
 
-def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, full_interpolator = True, p0 = [5000, 3, 0, 0]):
+def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, plot = True, full_interpolator = True, p0 = [5000, 3, 0, 0]):
     params = lmfit.Parameters()
 
     params.add('teff', value = p0[0], min = 3500, max = 7000, vary = True)
@@ -114,10 +122,42 @@ def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, full_interpolator = Tr
     params.add('RV', value = p0[3], min = -1500, max = 1500, vary = True)
         
     init = lmfit.minimize(chisqr, params, kws = dict(interpolator = interpolator, interp_wvl = interp_wvl, wl = wl, fl = fl, ivar = ivar), method = 'leastsq')
-            
-    rv, e_rv, rvgrid, cc = xcorr_rv(init_params, interpolator, interp_wvl, wl, fl, ivar)
+                
+    rv, e_rv, rvgrid, cc = xcorr_rv(init.params, interpolator, interp_wvl, wl, fl, ivar, plot)
     
-    return init.params, rv, e_rv, rvgrid, cc
+    #print(init.params)
+    
+    #param_grid = []
+    #for i in tqdm(range(100)):
+    #    temp_params = init.params.copy()
+    #    
+    #    if init.params['teff'].stderr is not None:
+    #        teff = init.params['teff'].value + (init.params['teff'].stderr) * np.random.normal()
+    #    else:
+    #        teff = init.params['teff'].value + (100) * np.random.normal()
+    #        
+    #    if init.params['logg'].stderr is not None:
+    #        logg = init.params['logg'].value + (init.params['logg'].stderr) * np.random.normal()
+    #    else:
+    #        logg = init.params['logg'].value + (0.1) * np.random.normal()
+    #        
+    #    if init.params['z'].stderr is not None:
+    #        z = init.params['z'].value + (init.params['z'].stderr) * np.random.normal()
+    #    else:
+    #        z = init.params['z'].value + (0.1 * init.params['z'].value) * np.random.normal()
+    #    
+    #    temp_params['teff'].value = teff
+    #    temp_params['logg'].value = logg
+    #    temp_params['z'].value = z
+    #    
+    #    trv, te_rv, trvgrid, tcc = xcorr_rv(temp_params, interpolator, interp_wvl, wl, fl, ivar, plot)
+    #    
+    #    param_grid.append([teff, logg, z, trv, te_rv])
+    #
+    #print(init.params)
+        
+    
+    return init, rv, e_rv, rvgrid, cc#, param_grid
 
 
 
