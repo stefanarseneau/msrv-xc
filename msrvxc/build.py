@@ -15,7 +15,7 @@ from . import utils
 
 c_kms = 2.99792458e5 # speed of light in km/s
 
-def build_bosz_grid(teff_grid = [3500, 7100, 250], logg_grid = [2.5, 5.5, 0.5], metal_grid = [-2.5, 1.5, 1], carbon_grid = [0, 1, 1], alpha_grid = [0, 1, 1], rv_grid = [-1000, 1000, 25], 
+def build_bosz_grid(teff_grid = [3500, 7100, 250], logg_grid = [2.5, 5.5, 0.5], metal_grid = [-2.5, 1.5, 1], carbon_grid = [0, 1, 1], alpha_grid = [0, 1, 1], 
                wl_range = [3600, 9000], R = 10000, R_target = 10000):
     """
     build_bosz_grid: builds interpolator grids from bosz
@@ -25,7 +25,6 @@ def build_bosz_grid(teff_grid = [3500, 7100, 250], logg_grid = [2.5, 5.5, 0.5], 
         metal_grid         array of [metal_minimum, metal_maximum, step]
         carbon_grid        array of [carbon_minimum, carbon_maximum, step]
         alpha_grid         array of [alpha_minimum, alpha_maximum, step]
-        rv_grid            array of [rv_minimum, rv_maximum, step]
         wl_range           two-element array of minimum and maximum wavelengths to calculate the grid
         R                  bosz instrument broadening
         R_target           desired resolution of the grid
@@ -100,19 +99,15 @@ def build_bosz_grid(teff_grid = [3500, 7100, 250], logg_grid = [2.5, 5.5, 0.5], 
                             
                         fl = file[1].data['SpecificIntensity']
                         wl = file[1].data['Wavelength']
-                        
-                        for r in range(len(rvs)):
-                            wl_new = wl * np.sqrt((1 - rvs[r]/c_kms)/(1 + rvs[r]/c_kms))
-                            nwavl_range = (wl_range[0]<wl_new)*(wl_new<wl_range[1])
                                
-                            smooth_fl = payne_utils.smoothing.smoothspec(wl_new,fl,resolution=R_target,smoothtype="R")[nwavl_range]
-                            wl_new = wl_new[nwavl_range]
-                            _, norm_fl = utils.continuum_normalize(wl_new,smooth_fl, avg_size = 500)
-                            
-                            
-                            raw_values[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, fl[nwavl_range])
-                            values[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, smooth_fl)
-                            values_norm[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, norm_fl)
+                        smooth_fl = payne_utils.smoothing.smoothspec(wl,fl,resolution=R_target,smoothtype="R")[wavl_range]
+                        wl = wl[wavl_range]
+                        _, norm_fl = utils.continuum_normalize(wl_new,smooth_fl, avg_size = 500)
+                        
+                        
+                        raw_values[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, fl[nwavl_range])
+                        values[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, smooth_fl)
+                        values_norm[i,j,k,a,b,r] = np.interp(wl_grid, wl_new, norm_fl)
                                                     
                         file.close()
                 

@@ -63,19 +63,24 @@ def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar, plot = False,
     """        
     rvgrid = np.arange(min_rv, max_rv, 0.5)
     cc = np.zeros(len(rvgrid))
+    rcc = np.zeros(len(rvgrid))
         
     residual = lambda params: chisqr(params, interpolator, interp_wvl, wl, fl, ivar)
     
     for ii,rv in enumerate(rvgrid):
         params['RV'].set(value = rv)
-        temp = residual(params)
-        chi = sum(temp)# / (len(temp) - 1)
+        resid = residual(params)
+        chi = np.nansum(resid)
+        redchi = np.nansum(resid) / (len(resid) - 1)
         cc[ii] = chi
+        rcc[ii] = redchi
         
     window = int(quad_window / np.diff(rvgrid)[0])
+
+    # plt.plot(rvgrid, cc)
+    # plt.show()
     
     argmin = np.nanargmin(cc)
-    
     c1 = argmin - window
 
     if c1 < 0:
@@ -85,33 +90,46 @@ def xcorr_rv(params, interpolator, interp_wvl, wl, fl, ivar, plot = False,
 
     #print(c1, c2)
 
-    glack = rvgrid
-    klack = cc
-    
     rvgrid = rvgrid[c1:c2]
     cc = cc[c1:c2]
+    rcc = rcc[c1:c2]
 
     try:
         pcoef = np.polyfit(rvgrid, cc, 2)
         rv = - 0.5 * pcoef[1] / pcoef[0]  
+        
+        print(pcoef[0])
+        print(pcoef[1])
+        print(pcoef[2])
+        
+        t_cc = pcoef[0] * rv**2 + pcoef[1] * rv + pcoef[2]
+        
+        intersect = ( (-pcoef[1] + np.sqrt(pcoef[1]**2 - 4 * pcoef[0] * (pcoef[2] - t_cc - 1))) / (2 * pcoef[0]), 
+                     (-pcoef[1] - np.sqrt(pcoef[1]**2 - 4 * pcoef[0] * (pcoef[2] - t_cc - 1))) / (2 * pcoef[0]) )
+        
+        e_rv = np.abs(intersect[0] - intersect[1]) / 2
+        redchi = np.interp(rv, rvgrid, rcc)
+    
+        if plot:
+            xgrid = np.linspace(min(rvgrid), max(rvgrid), 50)
+            
+            plt.figure(figsize = (10,5))
+            pcoef = np.polyfit(rvgrid, cc, 2)
+            plt.plot(rvgrid, cc, label = r'Actual $\chi^2$ curve')
+            plt.plot(xgrid, pcoef[0]*xgrid**2 + pcoef[1]*xgrid + pcoef[2], label = r'Fitted $\chi^2$ curve')
+            
+            plt.axvline(x = rv)
+            plt.axvline(x = rv + e_rv, ls = ':')
+            plt.axvline(x = rv - e_rv, ls = ':')
+            plt.axhline(y = t_cc, label = 'Minimum $\chi^2$')
     except:
-        print('pcoef failed!! returning min of chi function')
+        print('pcoef failed!! returning min of chi function & err = 999')
         rv = rvgrid[np.nanargmin(cc)]
-       
-    cutoff = 1
-    t_cc = np.interp(rv, rvgrid, cc)
-    temp = np.array([(cc[i] - t_cc) < cutoff for i in range(len(cc))])
-    
-    if plot:
-        plt.figure(figsize = (10,5))
-        pcoef = np.polyfit(rvgrid, cc, 2)
-        plt.plot(rvgrid, cc)
-    
-    e_rv = np.sqrt((np.abs(min(rvgrid[temp]) -max(rvgrid[temp])) / 2)**2 + 1**2)
+        e_rv = 999
     
     #rv = rvgrid[np.nanargmin(cc)]
         
-    return rv, e_rv, rvgrid, cc
+    return rv, e_rv, redchi, rvgrid, cc
 
 def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, plot = True, full_interpolator = True, p0 = [5000, 3, 0, 0]):
     params = lmfit.Parameters()
@@ -123,7 +141,7 @@ def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, plot = True, full_inte
         
     init = lmfit.minimize(chisqr, params, kws = dict(interpolator = interpolator, interp_wvl = interp_wvl, wl = wl, fl = fl, ivar = ivar), method = 'leastsq')
                 
-    rv, e_rv, rvgrid, cc = xcorr_rv(init.params, interpolator, interp_wvl, wl, fl, ivar, plot)
+    rv, e_rv, redchi, rvgrid, cc = xcorr_rv(init.params, interpolator, interp_wvl, wl, fl, ivar, plot)
     
     #print(init.params)
     
@@ -157,7 +175,7 @@ def fit_rv(interpolator, interp_wvl, wl, fl, ivar = None, plot = True, full_inte
     #print(init.params)
         
     
-    return init, rv, e_rv, rvgrid, cc#, param_grid
+    return rv, e_rv, redchi, init
 
 
 
